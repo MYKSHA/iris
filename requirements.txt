@@ -1,0 +1,6 @@
+anthropic>=0.60
+openai>=1.60
+python-dotenv>=1.0
+ddgs>=9.0
+python-telegram-bot>=21.0
+rich>=13.0
