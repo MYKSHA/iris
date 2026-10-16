@@ -1,0 +1,4 @@
+pandas>=2.2
+numpy>=1.26
+yfinance>=0.2.50   # only for data.source = "yfinance" and algo.fetch
+pytest>=8.0        # tests
