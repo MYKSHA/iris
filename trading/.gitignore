@@ -1,0 +1,4 @@
+results/
+data/*.csv
+data/ticks/
+data/daily/

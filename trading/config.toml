@@ -1,0 +1,166 @@
+# Multi-strategy intraday backtester config.
+# Enable/disable modules with [modules.<name>].enabled. Only ONE position is
+# ever open across all modules; when several signal on the same bar,
+# [engine].priority decides.
+
+[account]
+initial_equity = 1000000.0      # in base_currency
+base_currency  = "INR"
+
+[engine]
+one_position = true
+priority     = ["orb", "vcp", "box"]
+intrabar     = "stop_first"       # bar touches stop AND target: stop_first (conservative) | open_proximity
+
+[backtest]
+start            = "2025-01-01"
+end              = "2025-12-31"
+warmup_days      = 45            # calendar days loaded before `start` for EMAs / momentum / volume filters
+output_dir       = "results"
+risk_free_annual = 0.0
+
+[montecarlo]
+n_sims            = 1000
+method            = "bootstrap"   # "bootstrap" (resample with replacement) | "shuffle" (reorder)
+seed              = 42
+ruin_drawdown_pct = 30.0
+
+[data]
+source   = "csv"                  # csv | yfinance | ticks | synthetic
+interval = "5min"                 # base bar size loaded; modules resample to signal_timeframe
+csv_dir  = "data"                 # <csv_dir>/<SYMBOL>.csv  ("=" -> "_", "^" removed), TradingView export works as-is
+tick_dir = "data/ticks"           # for source="ticks": time,price,size[,side]
+daily_dir = "data/daily"
+
+[data.synthetic]                  # only used when source = "synthetic"
+seed               = 7
+start_price_stock  = 500.0
+base_volume_stock  = 50000.0
+start_price_future = 20000.0
+base_volume_future = 2000.0
+
+# ----------------------------------------------------------------- markets
+[markets.nse]
+timezone            = "Asia/Kolkata"
+session_start       = "09:15"
+session_end         = "15:30"
+entry_delay_seconds = 0
+currency            = "INR"
+fx_to_base          = 1.0
+tick_size           = 0.05
+point_value         = 1.0
+asset_class         = "stock"
+lot_size            = 1
+commission_per_unit = 0.0
+commission_bps      = 3.0         # per side, brokerage + STT + charges approximation
+slippage_ticks      = 1
+
+[markets.cme_nq]
+timezone            = "America/New_York"
+session_start       = "09:30"
+session_end         = "15:30"
+entry_delay_seconds = 60          # skip the first 60 seconds
+currency            = "USD"
+fx_to_base          = 84.0        # USD -> INR
+tick_size           = 0.25
+point_value         = 20.0        # NQ: $20/point = $5/tick (MNQ: 2.0)
+asset_class         = "future"
+commission_per_unit = 2.25        # USD per contract per side
+commission_bps      = 0.0
+slippage_ticks      = 1
+
+# ----------------------------------------------------------------- MODULE 1
+[modules.vcp]
+enabled          = true
+market           = "nse"
+symbols          = ["SYMBOL1.NS", "SYMBOL2.NS"]
+signal_timeframe = "5min"          # "5min" | "15min"
+daily_source     = "intraday"      # intraday | yfinance | csv  (daily bars for momentum / avg-volume)
+
+# universe filter
+use_universe_filter = true
+market_cap_source  = "config"      # config | yfinance
+market_caps_cr     = { "SYMBOL1.NS" = 2500.0, "SYMBOL2.NS" = 4200.0 }
+require_market_cap = true
+market_cap_min_cr  = 1000.0
+market_cap_max_cr  = 5000.0
+avg_volume_days    = 20
+min_avg_volume     = 500000
+
+# momentum filter: up +40-50% over the last 20-25 trading days (measured at the prior session close)
+use_momentum_filter        = true
+momentum_lookback_min_days = 20
+momentum_lookback_max_days = 25
+momentum_min_pct           = 40.0
+momentum_max_pct           = 50.0
+
+# trend filter: close > EMA9 > EMA21
+ema_fast = 9
+ema_slow = 21
+
+# VCP detection
+pivot_bars              = 3        # fractal swing definition (confirmed pivot_bars later — no lookahead)
+min_contractions        = 3
+max_contractions        = 4
+contraction_ratio_min   = 0.50     # each pullback 50-70% of the previous one
+contraction_ratio_max   = 0.70
+max_base_bars           = 200
+trendline_tolerance_pct = 0.5
+breakout_window_bars    = 3        # volume-confirmed close above trendline must come within N bars of the first close above it
+volume_sma_bars         = 20
+breakout_volume_mult    = 1.5
+
+# risk / exits
+stop_buffer_pct         = 0.05     # stop placed this far below the last VCP swing low
+break_even_r            = 1.0
+take_profit_pct         = 10.0     # spec range 8-13
+exit_on_close_below_ema = true     # close below 9 EMA
+eod_flatten             = true
+risk_pct                = 2.0
+max_position_pct        = 20.0
+min_position_pct        = 10.0
+
+# ----------------------------------------------------------------- MODULE 2
+[modules.orb]
+enabled             = true
+market              = "cme_nq"
+symbols             = ["NQ=F"]
+signal_timeframe    = "5min"       # load 1-min base data (data.interval or base_interval) for a precise 3-min time stop
+or_start            = "09:30"
+or_end              = "10:00"
+entry_cutoff        = "15:30"
+profile_bin_ticks   = 1
+stop_ticks          = 6            # spec 5-8, measured from the ORB level
+target_ticks        = 12           # spec 10-15, measured from entry
+time_stop_minutes   = 3.0
+time_stop_min_ticks = 2.0
+allow_short         = true
+max_trades_per_day  = 2
+eod_flatten         = true
+risk_pct            = 1.0
+max_contracts       = 2
+
+# ----------------------------------------------------------------- MODULE 3
+[modules.box]
+enabled                 = true
+market                  = "nse"
+symbols                 = ["SYMBOL1.NS", "SYMBOL2.NS"]
+signal_timeframe        = "5min"
+min_bars                = 10
+max_bars                = 30
+min_range_pct           = 1.0
+max_range_pct           = 3.0
+volume_sma_bars         = 20
+breakout_volume_mult    = 1.5
+stop_mode               = "box_low"  # box_low | ema21 | tighter | wider
+stop_buffer_pct         = 0.05
+ema_fast                = 9
+ema_slow                = 21
+take_profit_r           = 2.0
+break_even_r            = 1.0
+exit_on_close_below_ema = false
+require_trend           = false
+eod_flatten             = true
+risk_pct                = 2.0
+max_position_pct        = 20.0
+min_position_pct        = 10.0
