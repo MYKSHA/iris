@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
 
     out = Path(a.out) if a.out else cfg.resolve(cfg.backtest.get("output_dir", "results")) / datetime.now().strftime("%Y%m%d_%H%M%S")
     out.mkdir(parents=True, exist_ok=True)
+    if Path(a.config).resolve() != (out / "config.toml").resolve():
+        shutil.copyfile(a.config, out / "config.toml")  # exact config this run used (dashboard reads source/dates/symbols)
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     fh = logging.FileHandler(out / "backtest.log", encoding="utf-8")

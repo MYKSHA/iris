@@ -25,7 +25,7 @@ python -m pytest -q tests
 ```
 
 Each run writes `results/<timestamp>/<run>/` containing `trades.csv`, `equity.csv` and
-`report.json`, plus `backtest.log` at the run root.
+`report.json`, plus `backtest.log` and a copy of the config it ran with (`config.toml`) at the run root.
 
 ## Config (`config.toml`)
 

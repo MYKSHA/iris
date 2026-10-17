@@ -326,3 +326,17 @@ def test_config_loads_and_validates(tmp_path):
     p.write_text(bad)
     with pytest.raises(ValueError):
         load_config(p)
+
+
+def test_cli_saves_config_copy(tmp_path):
+    from algo.__main__ import main
+    root = Path(__file__).resolve().parents[1]
+    src = (root / "config.toml").read_text()
+    src = src.replace('source   = "csv"', 'source   = "synthetic"', 1).replace(
+        'end              = "2025-12-31"', 'end              = "2025-01-31"', 1)
+    cfg = tmp_path / "run.toml"
+    cfg.write_text(src)
+    out = tmp_path / "out"
+    assert main(["--config", str(cfg), "--modules", "box", "--out", str(out), "--no-montecarlo"]) == 0
+    assert (out / "config.toml").read_text() == src
+    assert (out / "box" / "report.json").exists()
